@@ -4,7 +4,7 @@ package handlers
 
 // LoginRequest represents the login request body
 type LoginRequest struct {
-	Email    string `json:"email" example:"admin@flight.com"`
+	Email    string `json:"email" example:"admin@tiket.com"`
 	Password string `json:"password" example:"admin123"`
 }
 
@@ -189,4 +189,3 @@ type ErrorMessageResponse struct {
 	Success bool   `json:"success" example:"false"`
 	Error   string `json:"error" example:"Error message"`
 }
-

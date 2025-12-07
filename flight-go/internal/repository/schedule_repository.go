@@ -119,14 +119,13 @@ func (r *scheduleRepository) Search(params SearchParams) ([]models.Schedule, int
 		query = query.Where("arr.code = ?", params.ArrivalAirportCode)
 	}
 
-	// Filter by departure date (check day of week and validity)
+	// Filter by departure date (check day of week)
 	if !params.DepartureDate.IsZero() {
 		dayOfWeek := int(params.DepartureDate.Weekday())
 		if dayOfWeek == 0 {
 			dayOfWeek = 7 // Convert Sunday from 0 to 7
 		}
 		query = query.Where("schedules.days_of_week LIKE ?", "%"+string(rune('0'+dayOfWeek))+"%")
-		query = query.Where("schedules.valid_from <= ? AND schedules.valid_until >= ?", params.DepartureDate, params.DepartureDate)
 	}
 
 	// Filter by airlines

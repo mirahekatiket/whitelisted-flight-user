@@ -41,8 +41,6 @@ type CreateScheduleRequest struct {
 	BusinessSeats      int     `json:"business_seats"`
 	FirstClassSeats    int     `json:"first_class_seats"`
 	IsActive           *bool   `json:"is_active"`
-	ValidFrom          string  `json:"valid_from"` // YYYY-MM-DD format
-	ValidUntil         string  `json:"valid_until"`
 }
 
 type UpdateScheduleRequest struct {
@@ -64,8 +62,6 @@ type UpdateScheduleRequest struct {
 	BusinessSeats      int     `json:"business_seats"`
 	FirstClassSeats    int     `json:"first_class_seats"`
 	IsActive           *bool   `json:"is_active"`
-	ValidFrom          string  `json:"valid_from"`
-	ValidUntil         string  `json:"valid_until"`
 }
 
 type SearchFlightRequest struct {
@@ -114,20 +110,6 @@ func (s *scheduleService) Create(req CreateScheduleRequest) (*models.Schedule, e
 
 	if req.DaysOfWeek == "" {
 		schedule.DaysOfWeek = "1,2,3,4,5,6,7"
-	}
-
-	if req.ValidFrom != "" {
-		validFrom, _ := time.Parse("2006-01-02", req.ValidFrom)
-		schedule.ValidFrom = validFrom
-	} else {
-		schedule.ValidFrom = time.Now()
-	}
-
-	if req.ValidUntil != "" {
-		validUntil, _ := time.Parse("2006-01-02", req.ValidUntil)
-		schedule.ValidUntil = validUntil
-	} else {
-		schedule.ValidUntil = time.Now().AddDate(1, 0, 0) // 1 year from now
 	}
 
 	if err := s.scheduleRepo.Create(schedule); err != nil {
@@ -205,14 +187,6 @@ func (s *scheduleService) Update(id string, req UpdateScheduleRequest) (*models.
 	}
 	if req.IsActive != nil {
 		schedule.IsActive = *req.IsActive
-	}
-	if req.ValidFrom != "" {
-		validFrom, _ := time.Parse("2006-01-02", req.ValidFrom)
-		schedule.ValidFrom = validFrom
-	}
-	if req.ValidUntil != "" {
-		validUntil, _ := time.Parse("2006-01-02", req.ValidUntil)
-		schedule.ValidUntil = validUntil
 	}
 
 	if err := s.scheduleRepo.Update(schedule); err != nil {

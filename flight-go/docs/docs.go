@@ -1968,7 +1968,7 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string",
-                    "example": "admin@flight.com"
+                    "example": "admin@tiket.com"
                 },
                 "password": {
                     "type": "string",

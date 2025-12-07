@@ -35,7 +35,7 @@ The server will start on `http://localhost:8080`
 
 ### 3. Default Admin Credentials
 
-- Email: `admin@flight.com`
+- Email: `admin@tiket.com`
 - Password: `admin123`
 
 ## Environment Variables
@@ -45,7 +45,7 @@ The server will start on `http://localhost:8080`
 | `SERVER_PORT` | `8080` | Server port |
 | `DATABASE_PATH` | `flight.db` | SQLite database file path |
 | `JWT_SECRET` | `your-super-secret-key-change-in-production` | JWT signing secret |
-| `ADMIN_EMAIL` | `admin@flight.com` | Default admin email |
+| `ADMIN_EMAIL` | `admin@tiket.com` | Default admin email |
 | `ADMIN_PASSWORD` | `admin123` | Default admin password |
 
 ## API Endpoints
@@ -149,7 +149,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@flight.com",
+    "email": "admin@tiket.com",
     "password": "admin123"
   }'
 ```

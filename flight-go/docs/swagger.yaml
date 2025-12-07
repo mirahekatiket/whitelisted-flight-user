@@ -160,7 +160,7 @@ definitions:
   handlers.LoginRequest:
     properties:
       email:
-        example: admin@flight.com
+        example: admin@tiket.com
         type: string
       password:
         example: admin123

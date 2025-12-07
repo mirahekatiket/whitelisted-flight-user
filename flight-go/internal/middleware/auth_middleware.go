@@ -88,3 +88,33 @@ func GetUserRole(c *gin.Context) models.Role {
 	return models.RoleUser
 }
 
+// GetUserEmail helper to get user email from context
+func GetUserEmail(c *gin.Context) string {
+	email, _ := c.Get("user_email")
+	if e, ok := email.(string); ok {
+		return e
+	}
+	return ""
+}
+
+// OptionalAuth middleware tries to extract user info but doesn't require authentication
+// This allows public endpoints to still check whitelist status if user is logged in
+func (m *AuthMiddleware) OptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			if tokenString != authHeader {
+				claims, err := m.authService.ValidateToken(tokenString)
+				if err == nil {
+					// Set user info in context if token is valid
+					c.Set("user_id", claims.UserID)
+					c.Set("user_email", claims.Email)
+					c.Set("user_role", claims.Role)
+				}
+			}
+		}
+		c.Next()
+	}
+}
+

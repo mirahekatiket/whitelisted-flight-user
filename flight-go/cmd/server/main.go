@@ -38,51 +38,91 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
-	// Connect to database
-	db, err := database.Connect(cfg)
+	// Connect to dual databases (staging and production)
+	dualDB, err := database.ConnectDual(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to connect to databases: %v", err)
 	}
 
-	// Seed default data
-	if err := database.SeedDefaultData(db, cfg); err != nil {
-		log.Printf("Warning: Failed to seed default data: %v", err)
+	// Get main database for users, whitelists, orders
+	mainDB := dualDB.GetMainDB()
+
+	// Seed default data to both databases
+	log.Println("Seeding staging database...")
+	if err := database.SeedDefaultData(dualDB.Staging, cfg, "staging"); err != nil {
+		log.Printf("Warning: Failed to seed staging data: %v", err)
+	}
+	log.Println("Seeding production database...")
+	if err := database.SeedDefaultData(dualDB.Production, cfg, "production"); err != nil {
+		log.Printf("Warning: Failed to seed production data: %v", err)
 	}
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(db)
-	airlineRepo := repository.NewAirlineRepository(db)
-	airportRepo := repository.NewAirportRepository(db)
-	scheduleRepo := repository.NewScheduleRepository(db)
-	orderRepo := repository.NewOrderRepository(db)
+	userRepo := repository.NewUserRepository(mainDB)
+	orderRepo := repository.NewOrderRepository(mainDB)
+	whitelistRepo := repository.NewWhitelistRepository(mainDB)
+
+	// Initialize dual repositories for airlines, airports, schedules
+	stagingAirlineRepo := repository.NewAirlineRepository(dualDB.Staging)
+	productionAirlineRepo := repository.NewAirlineRepository(dualDB.Production)
+	stagingAirportRepo := repository.NewAirportRepository(dualDB.Staging)
+	stagingScheduleRepo := repository.NewScheduleRepository(dualDB.Staging)
+	productionScheduleRepo := repository.NewScheduleRepository(dualDB.Production)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
-	airlineService := services.NewAirlineService(airlineRepo)
-	scheduleService := services.NewScheduleService(scheduleRepo)
-	orderService := services.NewOrderService(orderRepo, scheduleRepo)
+	whitelistService := services.NewWhitelistService(whitelistRepo)
 
-	// Create default admin user
-	createAdminUser(db, cfg)
+	// Create dual schedule service with both repositories and whitelist service
+	scheduleService := services.NewDualScheduleService(
+		stagingScheduleRepo,
+		productionScheduleRepo,
+		whitelistService,
+	)
+
+	// Create services for both environments
+	stagingAirlineService := services.NewAirlineService(stagingAirlineRepo)
+	productionAirlineService := services.NewAirlineService(productionAirlineRepo)
+	stagingScheduleService := services.NewScheduleService(stagingScheduleRepo)
+	productionScheduleService := services.NewScheduleService(productionScheduleRepo)
+
+	orderService := services.NewOrderService(orderRepo, stagingScheduleRepo)
+
+	// Create default admin user in main database
+	createAdminUser(mainDB, cfg)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)
 
-	// Initialize handlers
+	// Initialize handlers for both environments
 	authHandler := handlers.NewAuthHandler(authService)
-	airlineHandler := handlers.NewAirlineHandler(airlineService)
-	airportHandler := handlers.NewAirportHandler(airportRepo)
-	scheduleHandler := handlers.NewScheduleHandler(scheduleService)
+	stagingAirlineHandler := handlers.NewAirlineHandler(stagingAirlineService)
+	productionAirlineHandler := handlers.NewAirlineHandler(productionAirlineService)
+	stagingScheduleHandler := handlers.NewScheduleHandler(stagingScheduleService)
+	productionScheduleHandler := handlers.NewScheduleHandler(productionScheduleService)
+	airportHandler := handlers.NewAirportHandler(stagingAirportRepo)
+	scheduleHandler := handlers.NewScheduleHandler(scheduleService) // For public search (dual)
 	orderHandler := handlers.NewOrderHandler(orderService)
+	whitelistHandler := handlers.NewWhitelistHandler(whitelistService)
+
+	// Create environment-aware handler
+	envHandler := handlers.NewEnvAwareHandler(
+		stagingAirlineHandler,
+		productionAirlineHandler,
+		stagingScheduleHandler,
+		productionScheduleHandler,
+	)
 
 	// Setup router
 	r := router.NewRouter(
 		authMiddleware,
 		authHandler,
-		airlineHandler,
+		stagingAirlineHandler,
 		airportHandler,
 		scheduleHandler,
 		orderHandler,
+		whitelistHandler,
+		envHandler,
 	)
 
 	engine := r.Setup()

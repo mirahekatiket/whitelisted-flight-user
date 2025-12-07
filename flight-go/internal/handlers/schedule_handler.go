@@ -5,15 +5,23 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mirahekatiket/flight-go/internal/middleware"
 	"github.com/mirahekatiket/flight-go/internal/services"
 )
 
 type ScheduleHandler struct {
 	scheduleService services.ScheduleService
+	dualService     *services.DualScheduleService
 }
 
 func NewScheduleHandler(scheduleService services.ScheduleService) *ScheduleHandler {
-	return &ScheduleHandler{scheduleService: scheduleService}
+	// Try to cast to DualScheduleService
+	dualService, _ := scheduleService.(*services.DualScheduleService)
+	
+	return &ScheduleHandler{
+		scheduleService: scheduleService,
+		dualService:     dualService,
+	}
 }
 
 // Create godoc
@@ -58,6 +66,14 @@ func (h *ScheduleHandler) Create(c *gin.Context) {
 // @Router /admin/schedules/{id} [get]
 func (h *ScheduleHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
+
+	// Get email from authenticated user context only
+	email := middleware.GetUserEmail(c)
+
+	// Set email in dual service if available
+	if h.dualService != nil {
+		h.dualService.SetCurrentEmail(email)
+	}
 
 	schedule, err := h.scheduleService.GetByID(id)
 	if err != nil {
@@ -219,6 +235,14 @@ func (h *ScheduleHandler) Search(c *gin.Context) {
 	if req.Origin == "" || req.Destination == "" || req.DepartureDate == "" {
 		BadRequestResponse(c, "origin, destination, and departure_date are required")
 		return
+	}
+
+	// Get email from authenticated user context only
+	email := middleware.GetUserEmail(c)
+
+	// Set email in dual service if available
+	if h.dualService != nil {
+		h.dualService.SetCurrentEmail(email)
 	}
 
 	result, err := h.scheduleService.Search(req)

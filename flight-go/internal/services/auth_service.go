@@ -18,7 +18,7 @@ var (
 )
 
 type AuthService interface {
-	Register(req RegisterRequest) (*models.User, error)
+	Register(req RegisterRequest) (*TokenResponse, error)
 	Login(req LoginRequest) (*TokenResponse, error)
 	ValidateToken(tokenString string) (*Claims, error)
 	GetUserByID(id string) (*models.User, error)
@@ -61,7 +61,7 @@ func NewAuthService(userRepo repository.UserRepository, cfg *config.Config) Auth
 	}
 }
 
-func (s *authService) Register(req RegisterRequest) (*models.User, error) {
+func (s *authService) Register(req RegisterRequest) (*TokenResponse, error) {
 	// Check if user already exists
 	existingUser, _ := s.userRepo.FindByEmail(req.Email)
 	if existingUser != nil {
@@ -86,7 +86,32 @@ func (s *authService) Register(req RegisterRequest) (*models.User, error) {
 		return nil, err
 	}
 
-	return user, nil
+	// Generate JWT token
+	expiresAt := time.Now().Add(s.cfg.JWTExpiration)
+	claims := &Claims{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return nil, err
+	}
+
+	// Clear password before returning
+	user.Password = ""
+
+	return &TokenResponse{
+		Token:     tokenString,
+		ExpiresAt: expiresAt,
+		User:      user,
+	}, nil
 }
 
 func (s *authService) Login(req LoginRequest) (*TokenResponse, error) {

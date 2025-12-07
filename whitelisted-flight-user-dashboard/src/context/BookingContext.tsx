@@ -1,7 +1,16 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { Flight, FareOption, SearchParams, Airport } from "@/types/flight";
+import { getUserData, getAuthToken } from "@/lib/api";
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: string;
+}
 
 interface BookingContextType {
   searchParams: SearchParams;
@@ -10,8 +19,8 @@ interface BookingContextType {
   setSelectedFlight: (flight: Flight | null) => void;
   selectedFare: FareOption | null;
   setSelectedFare: (fare: FareOption | null) => void;
-  user: { email: string; name: string } | null;
-  setUser: (user: { email: string; name: string } | null) => void;
+  user: User | null;
+  setUser: (user: User | null) => void;
   isLoggedIn: boolean;
 }
 
@@ -30,7 +39,16 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useState<SearchParams>(defaultSearchParams);
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [selectedFare, setSelectedFare] = useState<FareOption | null>(null);
-  const [user, setUser] = useState<{ email: string; name: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const token = getAuthToken();
+    const userData = getUserData();
+    if (token && userData) {
+      setUser(userData);
+    }
+  }, []);
 
   return (
     <BookingContext.Provider
@@ -58,4 +76,3 @@ export function useBooking() {
   }
   return context;
 }
-

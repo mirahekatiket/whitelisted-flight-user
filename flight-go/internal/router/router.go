@@ -11,13 +11,15 @@ import (
 )
 
 type Router struct {
-	engine          *gin.Engine
-	authMiddleware  *middleware.AuthMiddleware
-	authHandler     *handlers.AuthHandler
-	airlineHandler  *handlers.AirlineHandler
-	airportHandler  *handlers.AirportHandler
-	scheduleHandler *handlers.ScheduleHandler
-	orderHandler    *handlers.OrderHandler
+	engine           *gin.Engine
+	authMiddleware   *middleware.AuthMiddleware
+	authHandler      *handlers.AuthHandler
+	airlineHandler   *handlers.AirlineHandler
+	airportHandler   *handlers.AirportHandler
+	scheduleHandler  *handlers.ScheduleHandler
+	orderHandler     *handlers.OrderHandler
+	whitelistHandler *handlers.WhitelistHandler
+	envHandler       *handlers.EnvAwareHandler
 }
 
 func NewRouter(
@@ -27,15 +29,19 @@ func NewRouter(
 	airportHandler *handlers.AirportHandler,
 	scheduleHandler *handlers.ScheduleHandler,
 	orderHandler *handlers.OrderHandler,
+	whitelistHandler *handlers.WhitelistHandler,
+	envHandler *handlers.EnvAwareHandler,
 ) *Router {
 	return &Router{
-		engine:          gin.Default(),
-		authMiddleware:  authMiddleware,
-		authHandler:     authHandler,
-		airlineHandler:  airlineHandler,
-		airportHandler:  airportHandler,
-		scheduleHandler: scheduleHandler,
-		orderHandler:    orderHandler,
+		engine:           gin.Default(),
+		authMiddleware:   authMiddleware,
+		authHandler:      authHandler,
+		airlineHandler:   airlineHandler,
+		airportHandler:   airportHandler,
+		scheduleHandler:  scheduleHandler,
+		orderHandler:     orderHandler,
+		whitelistHandler: whitelistHandler,
+		envHandler:       envHandler,
 	}
 }
 
@@ -65,7 +71,7 @@ func (r *Router) Setup() *gin.Engine {
 		airlines := api.Group("/airlines")
 		{
 			airlines.GET("", r.airlineHandler.List)
-			airlines.GET("/all", r.airlineHandler.ListAll)
+			airlines.GET("/all", r.envHandler.ListAllAirlines) // Support env query param
 			airlines.GET("/:id", r.airlineHandler.GetByID)
 			airlines.GET("/:id/schedules", r.scheduleHandler.ListByAirline)
 		}
@@ -81,7 +87,9 @@ func (r *Router) Setup() *gin.Engine {
 		}
 
 		// Flights routes (public - for searching and viewing)
+		// OptionalAuth allows authenticated users to access their whitelisted data
 		flights := api.Group("/flights")
+		flights.Use(r.authMiddleware.OptionalAuth())
 		{
 			flights.GET("/search", r.scheduleHandler.Search)
 			flights.GET("/:id", r.scheduleHandler.GetFlightDetail)
@@ -97,26 +105,41 @@ func (r *Router) Setup() *gin.Engine {
 			orders.POST("/:id/cancel", r.orderHandler.Cancel)
 		}
 
+		// Whitelist routes (public - for checking)
+		whitelist := api.Group("/whitelist")
+		{
+			whitelist.GET("/check", r.whitelistHandler.CheckEmailAccess)
+		}
+
 		// Admin routes
 		admin := api.Group("/admin")
 		admin.Use(r.authMiddleware.RequireAuth(), r.authMiddleware.RequireAdmin())
 		{
-			// Airlines management
-			admin.POST("/airlines", r.airlineHandler.Create)
-			admin.PUT("/airlines/:id", r.airlineHandler.Update)
-			admin.DELETE("/airlines/:id", r.airlineHandler.Delete)
+			// Airlines management (environment-aware via query param ?env=staging|production)
+			admin.GET("/airlines", r.envHandler.ListAirlines)
+			admin.POST("/airlines", r.envHandler.CreateAirline)
+			admin.PUT("/airlines/:id", r.envHandler.UpdateAirline)
+			admin.DELETE("/airlines/:id", r.envHandler.DeleteAirline)
 
-			// Schedules management
-			admin.GET("/schedules", r.scheduleHandler.List)
-			admin.POST("/schedules", r.scheduleHandler.Create)
-			admin.GET("/schedules/:id", r.scheduleHandler.GetByID)
-			admin.PUT("/schedules/:id", r.scheduleHandler.Update)
-			admin.DELETE("/schedules/:id", r.scheduleHandler.Delete)
+			// Schedules management (environment-aware via query param ?env=staging|production)
+			admin.GET("/schedules", r.envHandler.ListSchedules)
+			admin.POST("/schedules", r.envHandler.CreateSchedule)
+			admin.GET("/schedules/:id", r.envHandler.GetScheduleByID)
+			admin.PUT("/schedules/:id", r.envHandler.UpdateSchedule)
+			admin.DELETE("/schedules/:id", r.envHandler.DeleteSchedule)
 
 			// Orders management
 			admin.GET("/orders", r.orderHandler.List)
 			admin.GET("/orders/:id", r.orderHandler.GetByID)
 			admin.PUT("/orders/:id", r.orderHandler.Update)
+
+			// Whitelist management
+			admin.GET("/whitelist", r.whitelistHandler.List)
+			admin.POST("/whitelist", r.whitelistHandler.Create)
+			admin.GET("/whitelist/:id", r.whitelistHandler.GetByID)
+			admin.PUT("/whitelist/:id", r.whitelistHandler.Update)
+			admin.DELETE("/whitelist/:id", r.whitelistHandler.Delete)
+			admin.POST("/whitelist/:id/toggle-airline", r.whitelistHandler.ToggleAirlineAccess)
 		}
 	}
 

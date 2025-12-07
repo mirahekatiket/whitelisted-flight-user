@@ -16,12 +16,12 @@ func NewAuthHandler(authService services.AuthService) *AuthHandler {
 
 // Register godoc
 // @Summary Register a new user
-// @Description Register a new user account
+// @Description Register a new user account and return JWT token
 // @Tags Auth
 // @Accept json
 // @Produce json
 // @Param request body RegisterRequest true "Registration data"
-// @Success 201 {object} Response{data=User}
+// @Success 201 {object} Response{data=TokenResponse}
 // @Failure 400 {object} ErrorMessageResponse
 // @Failure 500 {object} ErrorMessageResponse
 // @Router /auth/register [post]
@@ -32,7 +32,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authService.Register(req)
+	tokenResponse, err := h.authService.Register(req)
 	if err != nil {
 		if err == services.ErrUserAlreadyExists {
 			BadRequestResponse(c, "User with this email already exists")
@@ -42,7 +42,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	CreatedResponse(c, user)
+	CreatedResponse(c, tokenResponse)
 }
 
 // Login godoc

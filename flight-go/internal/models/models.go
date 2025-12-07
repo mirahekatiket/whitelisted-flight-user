@@ -82,8 +82,6 @@ type Schedule struct {
 	BusinessSeats       int       `json:"business_seats" gorm:"default:30"`
 	FirstClassSeats     int       `json:"first_class_seats" gorm:"default:10"`
 	IsActive            bool      `json:"is_active" gorm:"default:true"`
-	ValidFrom           time.Time `json:"valid_from"`
-	ValidUntil          time.Time `json:"valid_until"`
 }
 
 // CabinClass type

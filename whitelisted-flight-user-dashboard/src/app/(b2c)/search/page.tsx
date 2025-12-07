@@ -1,31 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/b2c/Header";
 import { useBooking } from "@/context/BookingContext";
-import { airports } from "@/data/airports";
-import { Airport } from "@/types/flight";
+import { airportService, Airport as ApiAirport } from "@/services/airport.service";
 
 export default function SearchPage() {
   const router = useRouter();
   const { searchParams, setSearchParams } = useBooking();
-  const [origin, setOrigin] = useState<Airport | null>(
-    airports.find((a) => a.code === "CGK") || null
-  );
-  const [destination, setDestination] = useState<Airport | null>(
-    airports.find((a) => a.code === "DPS") || null
-  );
-  const [departureDate, setDepartureDate] = useState("2025-12-07");
+  const [airports, setAirports] = useState<ApiAirport[]>([]);
+  const [origin, setOrigin] = useState<ApiAirport | null>(null);
+  const [destination, setDestination] = useState<ApiAirport | null>(null);
+  const [departureDate, setDepartureDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [isRoundTrip, setIsRoundTrip] = useState(false);
   const [passengers, setPassengers] = useState({ adults: 1, children: 0, infants: 0 });
   const [showOriginDropdown, setShowOriginDropdown] = useState(false);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load airports from API
+  useEffect(() => {
+    const loadAirports = async () => {
+      try {
+        const airportsData = await airportService.getAllAirports();
+        setAirports(airportsData);
+        
+        // Set default airports
+        const defaultOrigin = airportsData.find((a) => a.code === "CGK");
+        const defaultDest = airportsData.find((a) => a.code === "DPS");
+        setOrigin(defaultOrigin || airportsData[0] || null);
+        setDestination(defaultDest || airportsData[1] || null);
+      } catch (error) {
+        console.error("Failed to load airports:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAirports();
+  }, []);
 
   const handleSearch = () => {
+    if (!origin || !destination) {
+      alert("Please select origin and destination");
+      return;
+    }
+
     setSearchParams({
-      origin,
-      destination,
+      origin: {
+        code: origin.code,
+        city: origin.city,
+        name: origin.name,
+      },
+      destination: {
+        code: destination.code,
+        city: destination.city,
+        name: destination.name,
+      },
       departureDate,
       passengers,
       cabinClass: "economy",
@@ -40,16 +75,18 @@ export default function SearchPage() {
     setDestination(temp);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-  };
-
   const totalPassengers = passengers.adults + passengers.children + passengers.infants;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0194f3]"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -215,6 +252,7 @@ export default function SearchPage() {
                   type="date"
                   value={departureDate}
                   onChange={(e) => setDepartureDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
                   className="w-full text-gray-900 font-semibold bg-transparent focus:outline-none"
                 />
               </div>
@@ -257,4 +295,3 @@ export default function SearchPage() {
     </div>
   );
 }
-
