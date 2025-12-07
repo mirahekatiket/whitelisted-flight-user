@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Header from "@/components/b2c/Header";
 import { useBooking } from "@/context/BookingContext";
 
 export default function ConfirmationPage() {
@@ -25,17 +26,7 @@ export default function ConfirmationPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E8F4FD] to-white">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-center h-16">
-            <Link href="/search" className="flex items-center gap-1">
-              <span className="text-2xl font-bold text-[#0194f3]">tiket</span>
-              <span className="w-2 h-2 rounded-full bg-[#ffc107]"></span>
-              <span className="text-2xl font-bold text-[#0194f3]">com</span>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
         {/* Success Icon */}

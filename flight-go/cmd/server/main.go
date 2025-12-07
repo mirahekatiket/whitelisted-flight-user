@@ -73,11 +73,12 @@ func main() {
 	authService := services.NewAuthService(userRepo, cfg)
 	whitelistService := services.NewWhitelistService(whitelistRepo)
 
-	// Create dual schedule service with both repositories and whitelist service
+	// Create dual schedule service with both repositories, whitelist service, and airline repo
 	scheduleService := services.NewDualScheduleService(
 		stagingScheduleRepo,
 		productionScheduleRepo,
 		whitelistService,
+		stagingAirlineRepo,
 	)
 
 	// Create services for both environments

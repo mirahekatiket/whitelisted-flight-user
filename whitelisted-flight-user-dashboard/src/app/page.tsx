@@ -186,7 +186,7 @@ export default function Home() {
           <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">
             How It Works
           </h2>
-          <div className="grid md:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 step: "1",
@@ -205,12 +205,6 @@ export default function Home() {
                 title: "Safe Testing",
                 desc: "User can only book on enabled airlines",
                 icon: "🔒",
-              },
-              {
-                step: "4",
-                title: "Clear Warnings",
-                desc: "Staging environment clearly indicated",
-                icon: "⚠️",
               },
             ].map((item) => (
               <div key={item.step} className="text-center">

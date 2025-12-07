@@ -12,17 +12,20 @@ type DualScheduleService struct {
 	stagingRepo      repository.ScheduleRepository
 	productionRepo   repository.ScheduleRepository
 	whitelistService *WhitelistService
+	airlineRepo      repository.AirlineRepository
 }
 
 func NewDualScheduleService(
 	stagingRepo repository.ScheduleRepository,
 	productionRepo repository.ScheduleRepository,
 	whitelistService *WhitelistService,
+	airlineRepo repository.AirlineRepository,
 ) *DualScheduleService {
 	return &DualScheduleService{
 		stagingRepo:      stagingRepo,
 		productionRepo:   productionRepo,
 		whitelistService: whitelistService,
+		airlineRepo:      airlineRepo,
 	}
 }
 
@@ -32,6 +35,29 @@ var currentEmail string
 // SetCurrentEmail sets the email for the current request
 func (s *DualScheduleService) SetCurrentEmail(email string) {
 	currentEmail = email
+}
+
+// getWhitelistedAirlineIDs returns the list of whitelisted airline IDs for the current user
+func (s *DualScheduleService) getWhitelistedAirlineIDs() []string {
+	email := currentEmail
+	
+	if email == "" {
+		return []string{}
+	}
+
+	// Check if user is whitelisted
+	whitelisted, err := s.whitelistService.IsEmailWhitelisted(email)
+	if err != nil || !whitelisted {
+		return []string{}
+	}
+
+	// Get whitelisted user to get enabled airlines
+	whitelistedUser, err := s.whitelistService.GetByEmail(email)
+	if err != nil {
+		return []string{}
+	}
+
+	return whitelistedUser.EnabledAirlineIDs
 }
 
 // getRepo returns the appropriate repository based on email and whitelist status
@@ -63,9 +89,8 @@ func (s *DualScheduleService) getRepo() repository.ScheduleRepository {
 }
 
 // Search searches for flights based on criteria
+// Iterates through all airlines and combines results from staging and production
 func (s *DualScheduleService) Search(req SearchFlightRequest) (*PaginatedResponse, error) {
-	repo := s.getRepo()
-	
 	// Parse departure date
 	departureDate, err := time.Parse("2006-01-02", req.DepartureDate)
 	if err != nil {
@@ -83,29 +108,88 @@ func (s *DualScheduleService) Search(req SearchFlightRequest) (*PaginatedRespons
 		cabinClass = models.CabinEconomy
 	}
 	
-	// Create search params
-	params := repository.SearchParams{
-		DepartureAirportCode: req.Origin,
-		ArrivalAirportCode:   req.Destination,
-		DepartureDate:        departureDate,
-		CabinClass:           cabinClass,
-		AirlineIDs:           req.Airlines,
-		Page:                 req.Page,
-		PageSize:             req.PageSize,
+	// Get whitelisted airline IDs for the current user
+	whitelistedAirlineIDs := s.getWhitelistedAirlineIDs()
+	whitelistedMap := make(map[string]bool)
+	for _, id := range whitelistedAirlineIDs {
+		whitelistedMap[id] = true
 	}
 	
-	schedules, total, err := repo.Search(params)
-	if err != nil {
-		return nil, err
+	// Get all airlines to iterate through
+	var airlinesToQuery []string
+	if len(req.Airlines) > 0 {
+		// If specific airlines requested, use those
+		airlinesToQuery = req.Airlines
+	} else {
+		// Get all active airlines from staging (they should be the same in both)
+		allAirlines, err := s.airlineRepo.ListAll()
+		if err != nil {
+			return nil, err
+		}
+		for _, airline := range allAirlines {
+			if airline.IsActive {
+				airlinesToQuery = append(airlinesToQuery, airline.ID)
+			}
+		}
 	}
-
+	
+	// Combine results from both databases
+	var allSchedules []models.Schedule
+	
+	// Query each airline
+	for _, airlineID := range airlinesToQuery {
+		var repo repository.ScheduleRepository
+		
+		// Check if this airline is whitelisted for the user
+		if whitelistedMap[airlineID] {
+			// Use production database for whitelisted airlines
+			repo = s.productionRepo
+		} else {
+			// Use staging database for non-whitelisted airlines
+			repo = s.stagingRepo
+		}
+		
+		// Create search params for this specific airline
+		params := repository.SearchParams{
+			DepartureAirportCode: req.Origin,
+			ArrivalAirportCode:   req.Destination,
+			DepartureDate:        departureDate,
+			CabinClass:           cabinClass,
+			AirlineIDs:           []string{airlineID},
+			Page:                 1,
+			PageSize:             1000, // Get all results for this airline
+		}
+		
+		schedules, _, err := repo.Search(params)
+		if err != nil {
+			// Log error but continue with other airlines
+			continue
+		}
+		
+		allSchedules = append(allSchedules, schedules...)
+	}
+	
+	// Calculate pagination
+	total := int64(len(allSchedules))
+	start := (req.Page - 1) * req.PageSize
+	end := start + req.PageSize
+	
+	if start >= len(allSchedules) {
+		allSchedules = []models.Schedule{}
+	} else {
+		if end > len(allSchedules) {
+			end = len(allSchedules)
+		}
+		allSchedules = allSchedules[start:end]
+	}
+	
 	totalPages := int(total) / req.PageSize
 	if int(total)%req.PageSize != 0 {
 		totalPages++
 	}
 
 	return &PaginatedResponse{
-		Data:       schedules,
+		Data:       allSchedules,
 		Page:       req.Page,
 		PageSize:   req.PageSize,
 		TotalItems: total,
